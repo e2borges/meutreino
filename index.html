@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Treino — Elias</title>
+<style>
+  :root {
+    --bg: #0f1923;
+    --surface: #182535;
+    --surface2: #1e3048;
+    --accent: #3b82f6;
+    --accent2: #22c55e;
+    --danger: #ef4444;
+    --text: #e8f0fe;
+    --muted: #6b8099;
+    --border: #243447;
+    --radius: 14px;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-sizing: border-box;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f0f4f8;
+      --surface: #ffffff;
+      --surface2: #e8f0fe;
+      --text: #0f1923;
+      --muted: #6b8099;
+      --border: #d0daea;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; }
+
+  #app { max-width: 430px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; }
+
+  /* HEADER */
+  .header { padding: 20px 20px 12px; background: var(--bg); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; }
+  .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  .header p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* SCREENS */
+  .screen { display: none; flex: 1; flex-direction: column; padding: 0 16px 32px; }
+  .screen.active { display: flex; }
+
+  /* ESCOLHA TREINO */
+  .treino-cards { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+  .treino-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    cursor: pointer;
+    transition: border-color .15s, transform .1s;
+    active: scale(.98);
+  }
+  .treino-card:active { transform: scale(.98); }
+  .treino-card.selected { border-color: var(--accent); }
+  .treino-card h2 { font-size: 18px; font-weight: 700; }
+  .treino-card .subtag { font-size: 11px; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+  .treino-card .exs { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.7; }
+  .treino-card .exs span { display: inline-block; background: var(--surface2); border-radius: 6px; padding: 2px 8px; margin: 2px 3px 2px 0; }
+
+  .btn { width: 100%; padding: 16px; border-radius: var(--radius); border: none; font-size: 16px; font-weight: 700; cursor: pointer; transition: opacity .15s; }
+  .btn:active { opacity: .8; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-success { background: var(--accent2); color: #fff; }
+  .btn-ghost { background: var(--surface); color: var(--text); border: 1.5px solid var(--border); }
+  .btn-danger { background: transparent; color: var(--danger); border: 1.5px solid var(--danger); }
+  .mt12 { margin-top: 12px; }
+  .mt20 { margin-top: 20px; }
+
+  /* SESSÃO */
+  .session-bar { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 16px; }
+  .session-info h3 { font-size: 16px; font-weight: 700; }
+  .session-info p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .timer { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); letter-spacing: -1px; }
+
+  .ex-list { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .ex-item {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    border: 1.5px solid var(--border);
+    transition: border-color .15s, background .15s;
+  }
+  .ex-item.done { border-color: var(--accent2); background: color-mix(in srgb, var(--accent2) 8%, var(--surface)); }
+  .ex-item.blocked { opacity: .4; cursor: default; }
+  .check-circle {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all .2s;
+    font-size: 14px;
+  }
+  .ex-item.done .check-circle { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+  .ex-item.blocked .check-circle { background: var(--danger); border-color: var(--danger); color: #fff; font-size: 10px; }
+  .ex-info { flex: 1; min-width: 0; }
+  .ex-name { font-size: 15px; font-weight: 600; }
+  .ex-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .ex-obs { font-size: 11px; color: var(--accent); margin-top: 4px; font-style: italic; }
+
+  /* RESUMO */
+  .summary-card { background: var(--surface); border-radius: var(--radius); padding: 20px; margin-bottom: 14px; }
+  .summary-card h3 { font-size: 14px; color: var(--muted); font-weight: 500; margin-bottom: 12px; text-transform: uppercase; letter-spacing: .5px; }
+  .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .stat-row:last-child { border: none; }
+  .stat-label { font-size: 14px; color: var(--muted); }
+  .stat-value { font-size: 16px; font-weight: 700; }
+  .stat-value.green { color: var(--accent2); }
+  .done-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .done-item { font-size: 13px; padding: 8px 12px; background: var(--surface2); border-radius: 8px; display: flex; justify-content: space-between; }
+  .done-item .done-check { color: var(--accent2); font-weight: 700; }
+
+  /* HISTÓRICO */
+  .hist-item { background: var(--surface); border-radius: var(--radius); padding: 16px; margin-bottom: 10px; }
+  .hist-header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .hist-treino { font-size: 15px; font-weight: 700; }
+  .hist-date { font-size: 12px; color: var(--muted); }
+  .hist-stats { display: flex; gap: 16px; margin-top: 10px; }
+  .hist-stat { font-size: 12px; color: var(--muted); }
+  .hist-stat strong { color: var(--text); }
+  .hist-exs { margin-top: 8px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+  .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty p { font-size: 14px; line-height: 1.6; }
+
+  /* NAV */
+  .nav { display: flex; background: var(--surface); border-top: 1px solid var(--border); padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px)); position: sticky; bottom: 0; }
+  .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 10px; font-weight: 500; transition: color .15s; }
+  .nav-btn.active { color: var(--accent); }
+  .nav-btn svg { width: 22px; height: 22px; }
+
+  .loading { display: flex; align-items: center; justify-content: center; flex: 1; }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .section-title { font-size: 13px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin: 16px 0 8px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <h1>💪 Meu Treino</h1>
+    <p id="header-sub">Elias Borges — Fase 3</p>
+  </div>
+
+  <!-- TELA: ESCOLHA -->
+  <div class="screen active" id="screen-home">
+    <p class="section-title">Escolha o treino de hoje</p>
+    <div class="treino-cards">
+      <div class="treino-card" id="card-a" onclick="selecionarTreino('A')">
+        <div class="subtag">Treino A</div>
+        <h2>🏋️ Pernas + Core</h2>
+        <div class="exs">
+          <span>Air Bike</span><span>Pressão Pernas</span><span>Extensora</span>
+          <span>Flexora</span><span>Abdução</span><span>Glúteo Máq.</span>
+          <span>Prancha</span><span>Bird Dog</span>
+        </div>
+      </div>
+      <div class="treino-card" id="card-b" onclick="selecionarTreino('B')">
+        <div class="subtag">Treino B</div>
+        <h2>💪 Costas + Braços</h2>
+        <div class="exs">
+          <span>Air Bike</span><span>Chest Press</span><span>Puxada Alta</span>
+          <span>Remada Baixa</span><span>Face Pull</span><span>Remada Unilat.</span>
+          <span>Elev. Lateral</span><span>Rosca</span><span>Tríceps</span>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary mt20" onclick="iniciarTreino()" id="btn-iniciar" style="display:none">Iniciar Treino →</button>
+    <button class="btn btn-ghost mt12" onclick="irPara('historico')" id="btn-hist-home">Ver Histórico</button>
+  </div>
+
+  <!-- MODAL CANCELAR -->
+  <div id="modal-cancelar" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center;padding:24px;">
+    <div style="background:var(--surface);border-radius:18px;padding:28px;max-width:340px;width:100%;text-align:center;">
+      <div style="font-size:36px;margin-bottom:12px;">⚠️</div>
+      <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;">Cancelar treino?</h3>
+      <p style="font-size:14px;color:var(--muted);margin-bottom:24px;">O progresso deste treino será perdido.</p>
+      <button onclick="confirmarCancelar()" style="width:100%;padding:14px;background:var(--danger);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px;">Sim, cancelar</button>
+      <button onclick="fecharModalCancelar()" style="width:100%;padding:14px;background:var(--surface2);color:var(--text);border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;">Continuar treino</button>
+    </div>
+  </div>
+
+  <!-- TELA: SESSÃO -->
+  <div class="screen" id="screen-sessao">
+    <div class="session-bar">
+      <div class="session-info">
+        <h3 id="sess-titulo"></h3>
+        <p id="sess-data"></p>
+      </div>
+      <div class="timer" id="timer">00:00</div>
+    </div>
+    <div class="ex-list" id="ex-list"></div>
+    <button class="btn btn-success mt20" onclick="finalizarTreino()">Finalizar Treino ✓</button>
+    <button class="btn btn-danger mt12" onclick="cancelarTreino()">Cancelar</button>
+  </div>
+
+  <!-- TELA: RESUMO -->
+  <div class="screen" id="screen-resumo">
+    <p class="section-title">Treino Concluído 🎉</p>
+    <div class="summary-card">
+      <h3>Resumo</h3>
+      <div class="stat-row"><span class="stat-label">Treino</span><span class="stat-value" id="res-treino"></span></div>
+      <div class="stat-row"><span class="stat-label">Data</span><span class="stat-value" id="res-data"></span></div>
+      <div class="stat-row"><span class="stat-label">Duração</span><span class="stat-value green" id="res-duracao"></span></div>
+      <div class="stat-row"><span class="stat-label">Exercícios feitos</span><span class="stat-value green" id="res-feitos"></span></div>
+    </div>
+    <div class="summary-card">
+      <h3>Exercícios realizados</h3>
+      <div class="done-list" id="res-lista"></div>
+    </div>
+    <div style="text-align:center;font-size:12px;color:#22c55e;margin-top:8px;">✅ Treino salvo no Google Sheets</div>
+    <button class="btn btn-primary mt12" onclick="irPara('home')">Novo Treino</button>
+    <button class="btn btn-ghost mt12" onclick="irPara('historico')">Ver Histórico</button>
+  </div>
+
+  <!-- TELA: HISTÓRICO -->
+  <div class="screen" id="screen-historico">
+    <p class="section-title">Histórico de Treinos</p>
+    <div id="hist-list"><div class="loading"><div class="spinner"></div></div></div>
+    <button class="btn btn-ghost mt20" onclick="irPara('home')">← Voltar</button>
+  </div>
+
+  <nav class="nav">
+    <button class="nav-btn active" id="nav-home" onclick="irPara('home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Início
+    </button>
+    <button class="nav-btn" id="nav-historico" onclick="irPara('historico')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Histórico
+    </button>
+  </nav>
+</div>
+
+<script>
+const TREINOS = {
+  A: {
+    nome: "Treino A — Pernas + Core",
+    exercicios: [
+      { nome: "🚴 Air Bike (aquecimento)", meta: "8 min leve", obs: "Ritmo suave — use mais pernas se ombro reclamar" },
+      { nome: "Leg Press 45°", meta: "4 séries × 12 reps", obs: "Joelho máx 90° — pés altos na plataforma" },
+      { nome: "Cadeira Extensora", meta: "3 séries × 12 reps", obs: "Amplitude parcial — joelho direito" },
+      { nome: "Cadeira Flexora", meta: "3 séries × 12–15 reps", obs: "" },
+      { nome: "Abdução de Quadril", meta: "4 séries × 15 reps", obs: "Movimento lento" },
+      { nome: "Glúteo na Máquina", meta: "4 séries × 12 reps", obs: "Ajuste banco no eixo do quadril" },
+      { nome: "Prancha Frontal", meta: "3 séries × 45s", obs: "" },
+      { nome: "Bird Dog", meta: "3 séries × 12 cada lado", obs: "" },
+      { nome: "🚴 Air Bike (finalizador)", meta: "3× 45s esforço / 30s pausa", obs: "Intensidade moderada" },
+    ]
+  },
+  B: {
+    nome: "Treino B — Costas + Braços",
+    exercicios: [
+      { nome: "🚴 Air Bike (aquecimento)", meta: "8 min leve", obs: "Braços em ritmo suave — ombro relaxado" },
+      { nome: "Chest Press (máquina)", meta: "3 séries × 10–12 reps", obs: "Mais seguro que supino — ombro" },
+      { nome: "Puxada Alta Frontal", meta: "4 séries × 10–12 reps", obs: "Peito aberto, não puxar atrás" },
+      { nome: "Remada Baixa Polia", meta: "4 séries × 12 reps", obs: "Segurar 1s puxado" },
+      { nome: "⭐ Face Pull", meta: "3 séries × 15 reps", obs: "Essencial — manguito rotador / ombro" },
+      { nome: "Remada Unilateral Halter", meta: "3 séries × 10 cada lado", obs: "" },
+      { nome: "Elevação Lateral Halter", meta: "3 séries × 12 reps", obs: "Carga leve — ombro sensível" },
+      { nome: "Rosca Direta", meta: "3 séries × 12 reps", obs: "" },
+      { nome: "Tríceps Corda Polia", meta: "3 séries × 12–15 reps", obs: "" },
+    ]
+  }
+};
+
+let treinoSelecionado = null;
+let sessaoAtiva = null;
+let timerInterval = null;
+let db = null;
+
+// ── SUPABASE DIRETO (funciona no github.io) ──────────────────────────────────
+const SUPABASE_URL = "https://gzrptyxogwtpwlymtwnp.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6cnB0eXhvZ3d0cHdseW10d25wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxMTM1ODQsImV4cCI6MjEwNzY4OTU4NH0.00Z-LImogBxOv9fJFpWLMBYza5jni-GzfEOxXwNuyBc";
+const SHEETS_URL   = "https://script.google.com/macros/s/AKfycbzhrprFOgVwc4O_0E_W1gJha-FncteeVAC7drJKYsqfx6-aEHuaRrhBseqLb4obURy4/exec";
+
+async function sbFetch(path, options = {}) {
+  const headers = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": "Bearer " + SUPABASE_KEY,
+    "Content-Type": "application/json"
+  };
+  if (options.prefer) headers["Prefer"] = options.prefer;
+  const res = await fetch(SUPABASE_URL + path, {
+    method: options.method || "GET",
+    headers,
+    body: options.body || undefined
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error("HTTP " + res.status + ": " + text.slice(0, 200));
+  return text ? JSON.parse(text) : [];
+}
+
+async function initDB() {}
+
+async function salvarSessao(sessao) {
+  salvarLocal(sessao);
+  try {
+    await sbFetch("/rest/v1/treinos", {
+      method: "POST",
+      prefer: "resolution=ignore-duplicates",
+      body: JSON.stringify({
+        id: sessao.id, tipo: sessao.tipo, nome: sessao.nome,
+        data_str: sessao.dataStr, hora_str: sessao.horaStr,
+        duracao_str: sessao.duracaoStr, duracao_seg: sessao.duracaoSeg,
+        feitos_count: sessao.feitosCount, total_count: sessao.totalCount,
+        kcal: sessao.kcal || null, fc_media: sessao.fcMedia || null,
+        exercicios: sessao.exercicios
+      })
+    });
+  } catch(e) { console.warn("Supabase salvar erro:", e); }
+  // Espelho no Google Sheets
+  try {
+    fetch(SHEETS_URL, {
+      method: "POST", mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "salvar", ...sessao })
+    });
+  } catch(e) {}
+}
+
+async function carregarHistorico() {
+  try {
+    const data = await sbFetch("/rest/v1/treinos?order=criado_em.desc&limit=50");
+    if (data && data.length > 0) {
+      try { localStorage.removeItem("treinos_elias"); } catch(e) {}
+      return data.map(t => ({
+        ...t,
+        dataStr: t.data_str, horaStr: t.hora_str,
+        duracaoStr: t.duracao_str, duracaoSeg: t.duracao_seg,
+        feitosCount: t.feitos_count, totalCount: t.total_count
+      }));
+    }
+  } catch(e) { console.warn("Supabase carregar erro:", e); }
+  return carregarLocal();
+}
+function salvarLocal(sessao) {
+  try {
+    const lista = JSON.parse(localStorage.getItem("treinos_elias") || "[]");
+    lista.unshift(sessao);
+    if (lista.length > 50) lista.pop();
+    localStorage.setItem("treinos_elias", JSON.stringify(lista));
+  } catch(e) {}
+}
+
+function carregarLocal() {
+  try { return JSON.parse(localStorage.getItem("treinos_elias") || "[]"); } catch(e) { return []; }
+}
+
+// ── NAVEGAÇÃO ────────────────────────────────────────────────────────────────
+function irPara(tela) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("screen-" + tela).classList.add("active");
+  const navBtn = document.getElementById("nav-" + tela);
+  if (navBtn) navBtn.classList.add("active");
+  if (tela === "historico") renderHistorico();
+}
+
+// ── SELEÇÃO ──────────────────────────────────────────────────────────────────
+function selecionarTreino(tipo) {
+  treinoSelecionado = tipo;
+  document.querySelectorAll(".treino-card").forEach(c => c.classList.remove("selected"));
+  document.getElementById("card-" + tipo.toLowerCase()).classList.add("selected");
+  document.getElementById("btn-iniciar").style.display = "block";
+}
+
+// ── INICIAR ──────────────────────────────────────────────────────────────────
+function iniciarTreino() {
+  if (!treinoSelecionado) return;
+  const treino = TREINOS[treinoSelecionado];
+  const agora = new Date();
+
+  sessaoAtiva = {
+    id: "t_" + Date.now(),
+    tipo: treinoSelecionado,
+    nome: treino.nome,
+    timestamp: agora.getTime(),
+    dataStr: agora.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }),
+    horaStr: agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+    exercicios: treino.exercicios.map(e => ({ ...e, feito: false })),
+    duracaoSeg: 0,
+    inicio: Date.now()
+  };
+
+  document.getElementById("sess-titulo").textContent = treino.nome;
+  document.getElementById("sess-data").textContent = sessaoAtiva.dataStr + " às " + sessaoAtiva.horaStr;
+
+  renderExercicios();
+  iniciarTimer();
+  irPara("sessao");
+}
+
+function renderExercicios() {
+  const lista = document.getElementById("ex-list");
+  lista.innerHTML = "";
+  sessaoAtiva.exercicios.forEach((ex, i) => {
+    const blocked = ex.nome.includes("🚫");
+    const div = document.createElement("div");
+    div.className = "ex-item" + (ex.feito ? " done" : "") + (blocked ? " blocked" : "");
+    div.id = "ex-" + i;
+    if (!blocked) div.onclick = () => toggleEx(i);
+    div.innerHTML = `
+      <div class="check-circle">${blocked ? "✕" : ex.feito ? "✓" : ""}</div>
+      <div class="ex-info">
+        <div class="ex-name">${ex.nome}</div>
+        <div class="ex-meta">${ex.meta}</div>
+        ${ex.obs ? `<div class="ex-obs">${ex.obs}</div>` : ""}
+      </div>`;
+    lista.appendChild(div);
+  });
+}
+
+function toggleEx(i) {
+  sessaoAtiva.exercicios[i].feito = !sessaoAtiva.exercicios[i].feito;
+  const item = document.getElementById("ex-" + i);
+  item.classList.toggle("done", sessaoAtiva.exercicios[i].feito);
+  const circle = item.querySelector(".check-circle");
+  circle.textContent = sessaoAtiva.exercicios[i].feito ? "✓" : "";
+}
+
+// ── TIMER ────────────────────────────────────────────────────────────────────
+function iniciarTimer() {
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    if (!sessaoAtiva) { clearInterval(timerInterval); return; }
+    const seg = Math.floor((Date.now() - sessaoAtiva.inicio) / 1000);
+    const m = String(Math.floor(seg / 60)).padStart(2, "0");
+    const s = String(seg % 60).padStart(2, "0");
+    const el = document.getElementById("timer");
+    if (el) el.textContent = m + ":" + s;
+    sessaoAtiva.duracaoSeg = seg;
+  }, 1000);
+}
+
+// ── FINALIZAR ────────────────────────────────────────────────────────────────
+async function finalizarTreino() {
+  clearInterval(timerInterval);
+  sessaoAtiva.duracaoSeg = Math.floor((Date.now() - sessaoAtiva.inicio) / 1000);
+
+  const feitos = sessaoAtiva.exercicios.filter(e => e.feito && !e.nome.includes("🚫"));
+  const total = sessaoAtiva.exercicios.filter(e => !e.nome.includes("🚫")).length;
+  const m = Math.floor(sessaoAtiva.duracaoSeg / 60);
+  const s = sessaoAtiva.duracaoSeg % 60;
+  const duracaoStr = `${m}min ${s}s`;
+
+  document.getElementById("res-treino").textContent = sessaoAtiva.nome;
+  document.getElementById("res-data").textContent = sessaoAtiva.dataStr + " às " + sessaoAtiva.horaStr;
+  document.getElementById("res-duracao").textContent = duracaoStr;
+  document.getElementById("res-feitos").textContent = feitos.length + " / " + total;
+
+  const lista = document.getElementById("res-lista");
+  lista.innerHTML = sessaoAtiva.exercicios
+    .filter(e => !e.nome.includes("🚫"))
+    .map(e => `<div class="done-item"><span>${e.nome}</span><span class="done-check">${e.feito ? "✓" : "—"}</span></div>`)
+    .join("");
+
+  sessaoAtiva.duracaoStr = duracaoStr;
+  sessaoAtiva.feitosCount = feitos.length;
+  sessaoAtiva.totalCount = total;
+
+  // Feedback visual de salvando
+  const btnFinalizar = document.querySelector("#screen-sessao .btn-success");
+  if (btnFinalizar) { btnFinalizar.textContent = "Salvando... ⏳"; btnFinalizar.disabled = true; }
+
+  await salvarSessao(sessaoAtiva);
+
+  sessaoAtiva = null;
+  irPara("resumo");
+}
+
+function cancelarTreino() {
+  // Não usa confirm() — Safari PWA não suporta
+  mostrarModalCancelar();
+}
+
+function mostrarModalCancelar() {
+  const modal = document.getElementById("modal-cancelar");
+  if (modal) modal.style.display = "flex";
+}
+
+function confirmarCancelar() {
+  const modal = document.getElementById("modal-cancelar");
+  if (modal) modal.style.display = "none";
+  clearInterval(timerInterval);
+  sessaoAtiva = null;
+  irPara("home");
+}
+
+function fecharModalCancelar() {
+  const modal = document.getElementById("modal-cancelar");
+  if (modal) modal.style.display = "none";
+}
+
+// ── HISTÓRICO ────────────────────────────────────────────────────────────────
+async function renderHistorico() {
+  const el = document.getElementById("hist-list");
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  
+  let items = [];
+  let fonte = "";
+  let erro = "";
+
+  try {
+    const data = await sbFetch("/rest/v1/treinos?order=criado_em.desc&limit=50");
+    if (data && data.length > 0) {
+      items = data.map(t => ({
+        ...t,
+        dataStr: t.data_str,
+        horaStr: t.hora_str,
+        duracaoStr: t.duracao_str,
+        duracaoSeg: t.duracao_seg,
+        feitosCount: t.feitos_count,
+        totalCount: t.total_count
+      }));
+      fonte = "☁️ Supabase (" + items.length + " treinos)";
+      try { localStorage.removeItem("treinos_elias"); } catch(e) {}
+    } else {
+      fonte = "⚠️ Supabase retornou vazio";
+      items = carregarLocal();
+      if (items.length > 0) fonte += " — usando local (" + items.length + ")";
+    }
+  } catch(e) {
+    erro = e.message || String(e);
+    fonte = "❌ Erro Supabase";
+    items = carregarLocal();
+  }
+
+  if (!items || items.length === 0) {
+    el.innerHTML = `
+      <div class="empty">
+        <div class="icon">📋</div>
+        <p>Nenhum treino encontrado.</p>
+        <p style="font-size:11px;color:var(--accent);margin-top:8px;">Fonte: ${fonte}</p>
+        ${erro ? `<p style="font-size:10px;color:var(--danger);margin-top:4px;word-break:break-all">${erro}</p>` : ""}
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = ``
+  items.map(s => {
+    const feitos = s.feitosCount ?? "—";
+    const total = s.totalCount ?? "—";
+    const exFeitos = (s.exercicios || []).filter(e => e.feito).map(e => e.nome).join(", ") || "—";
+    return `
+    <div class="hist-item">
+      <div class="hist-header">
+        <span class="hist-treino">Treino ${s.tipo} — ${s.tipo === "A" ? "Pernas" : "Braços"}</span>
+        <span class="hist-date">${s.dataStr || ""}</span>
+      </div>
+      <div class="hist-stats">
+        <span class="hist-stat">⏱ <strong>${s.duracaoStr || "—"}</strong></span>
+        <span class="hist-stat">✓ <strong>${feitos}/${total} exercícios</strong></span>
+        <span class="hist-stat">🕐 <strong>${s.horaStr || ""}</strong></span>
+      </div>
+      <div class="hist-exs">${exFeitos}</div>
+    </div>`;
+  }).join("");
+}
+
+// ── SEEDS HARDCODED ────────────────────────────────────────────────────────
+const SEEDS = [
+  {
+    id: "t_seed_20261008",
+    tipo: "B",
+    nome: "Treino B — Costas + Braços",
+    timestamp: new Date("2026-10-08T20:20:00").getTime(),
+    dataStr: "qui., 08 de out. de 2026",
+    horaStr: "20:20",
+    duracaoStr: "2h 16min 16s",
+    duracaoSeg: 8176,
+    feitosCount: 9,
+    totalCount: 9,
+    kcal: 1304,
+    fcMedia: 109,
+    fcMax: 176,
+    exercicios: [
+      { nome: "🚴 Air Bike (aquecimento)", meta: "8 min leve", feito: true },
+      { nome: "Chest Press (máquina)", meta: "3 × 10–12", feito: true },
+      { nome: "Puxada Alta Frontal", meta: "4 × 10–12", feito: true },
+      { nome: "Remada Baixa Polia", meta: "4 × 12", feito: true },
+      { nome: "⭐ Face Pull", meta: "3 × 15", feito: true },
+      { nome: "Remada Unilateral Halter", meta: "3 × 10 cada", feito: true },
+      { nome: "Elevação Lateral Halter", meta: "3 × 12", feito: true },
+      { nome: "Rosca Direta", meta: "3 × 12", feito: true },
+      { nome: "Tríceps Corda Polia", meta: "3 × 12–15", feito: true }
+    ]
+  },
+  {
+    id: "t_seed_20261005",
+    tipo: "A",
+    nome: "Treino A — Pernas + Core",
+    timestamp: new Date("2026-10-05T20:39:00").getTime(),
+    dataStr: "seg., 05 de out. de 2026",
+    horaStr: "20:39",
+    duracaoStr: "1h 9min 46s",
+    duracaoSeg: 4186,
+    feitosCount: 9,
+    totalCount: 9,
+    kcal: 612,
+    fcMedia: 103,
+    exercicios: [
+      { nome: "🚴 Air Bike (aquecimento)", meta: "8 min leve", feito: true },
+      { nome: "Pressão de Pernas Sentado", meta: "4 × 12", feito: true },
+      { nome: "Cadeira Extensora", meta: "3 × 12", feito: true },
+      { nome: "Cadeira Flexora", meta: "3 × 12–15", feito: true },
+      { nome: "Abdução de Quadril", meta: "4 × 15", feito: true },
+      { nome: "Glúteo na Máquina", meta: "4 × 12", feito: true },
+      { nome: "Prancha Frontal", meta: "3 × 45s", feito: true },
+      { nome: "Bird Dog", meta: "3 × 12 cada", feito: true },
+      { nome: "🚴 Air Bike (finalizador)", meta: "3× 45s / 30s pausa", feito: true }
+    ]
+  },
+  {
+    id: "t_seed_20260928",
+    tipo: "B",
+    nome: "Treino B — Costas + Braços",
+    timestamp: new Date("2026-09-28T20:59:00").getTime(),
+    dataStr: "dom., 28 de set. de 2026",
+    horaStr: "20:59",
+    duracaoStr: "59min 28s",
+    duracaoSeg: 3568,
+    feitosCount: 9,
+    totalCount: 9,
+    kcal: 552,
+    fcMedia: 107,
+    exercicios: [
+      { nome: "🚴 Air Bike (aquecimento)", meta: "8 min leve", feito: true },
+      { nome: "Chest Press (máquina)", meta: "3 × 10–12", feito: true },
+      { nome: "Puxada Alta Frontal", meta: "4 × 10–12", feito: true },
+      { nome: "Remada Baixa Polia", meta: "4 × 12", feito: true },
+      { nome: "⭐ Face Pull", meta: "3 × 15", feito: true },
+      { nome: "Remada Unilateral Halter", meta: "3 × 10 cada", feito: true },
+      { nome: "Elevação Lateral Halter", meta: "3 × 12", feito: true },
+      { nome: "Rosca Direta", meta: "3 × 12", feito: true },
+      { nome: "Tríceps Corda Polia", meta: "3 × 12–15", feito: true }
+    ]
+  }
+];
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+(async () => {
+  // Insere seeds no localStorage se ainda não existirem
+  try {
+    const lista = JSON.parse(localStorage.getItem("treinos_elias") || "[]");
+    let alterou = false;
+    for (const seed of SEEDS) {
+      if (!lista.find(t => t.id === seed.id)) {
+        lista.push(seed);
+        alterou = true;
+      }
+    }
+    if (alterou) {
+      lista.sort((a, b) => b.timestamp - a.timestamp);
+      localStorage.setItem("treinos_elias", JSON.stringify(lista));
+    }
+  } catch(e) {}
+
+  await initDB();
+})();
+</script>
+</body>
+</html>
