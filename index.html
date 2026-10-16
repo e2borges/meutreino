@@ -505,49 +505,12 @@ function fecharModalCancelar() {
 async function renderHistorico() {
   const el = document.getElementById("hist-list");
   el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-  
-  let items = [];
-  let fonte = "";
-  let erro = "";
-
-  try {
-    const data = await sbFetch("/rest/v1/treinos?order=criado_em.desc&limit=50");
-    if (data && data.length > 0) {
-      items = data.map(t => ({
-        ...t,
-        dataStr: t.data_str,
-        horaStr: t.hora_str,
-        duracaoStr: t.duracao_str,
-        duracaoSeg: t.duracao_seg,
-        feitosCount: t.feitos_count,
-        totalCount: t.total_count
-      }));
-      fonte = "☁️ Supabase (" + items.length + " treinos)";
-      try { localStorage.removeItem("treinos_elias"); } catch(e) {}
-    } else {
-      fonte = "⚠️ Supabase retornou vazio";
-      items = carregarLocal();
-      if (items.length > 0) fonte += " — usando local (" + items.length + ")";
-    }
-  } catch(e) {
-    erro = e.message || String(e);
-    fonte = "❌ Erro Supabase";
-    items = carregarLocal();
-  }
-
+  const items = await carregarHistorico();
   if (!items || items.length === 0) {
-    el.innerHTML = `
-      <div class="empty">
-        <div class="icon">📋</div>
-        <p>Nenhum treino encontrado.</p>
-        <p style="font-size:11px;color:var(--accent);margin-top:8px;">Fonte: ${fonte}</p>
-        ${erro ? `<p style="font-size:10px;color:var(--danger);margin-top:4px;word-break:break-all">${erro}</p>` : ""}
-      </div>`;
+    el.innerHTML = `<div class="empty"><div class="icon">📋</div><p>Nenhum treino registrado ainda.<br>Complete seu primeiro treino!</p></div>`;
     return;
   }
-
-  el.innerHTML = ``
-  items.map(s => {
+  el.innerHTML = items.map(s => {
     const feitos = s.feitosCount ?? "—";
     const total = s.totalCount ?? "—";
     const exFeitos = (s.exercicios || []).filter(e => e.feito).map(e => e.nome).join(", ") || "—";
@@ -567,85 +530,6 @@ async function renderHistorico() {
   }).join("");
 }
 
-// ── SEEDS HARDCODED ────────────────────────────────────────────────────────
-const SEEDS = [
-  {
-    id: "t_seed_20261008",
-    tipo: "B",
-    nome: "Treino B — Costas + Braços",
-    timestamp: new Date("2026-10-08T20:20:00").getTime(),
-    dataStr: "qui., 08 de out. de 2026",
-    horaStr: "20:20",
-    duracaoStr: "2h 16min 16s",
-    duracaoSeg: 8176,
-    feitosCount: 9,
-    totalCount: 9,
-    kcal: 1304,
-    fcMedia: 109,
-    fcMax: 176,
-    exercicios: [
-      { nome: "🚴 Air Bike (aquecimento)", meta: "8 min leve", feito: true },
-      { nome: "Chest Press (máquina)", meta: "3 × 10–12", feito: true },
-      { nome: "Puxada Alta Frontal", meta: "4 × 10–12", feito: true },
-      { nome: "Remada Baixa Polia", meta: "4 × 12", feito: true },
-      { nome: "⭐ Face Pull", meta: "3 × 15", feito: true },
-      { nome: "Remada Unilateral Halter", meta: "3 × 10 cada", feito: true },
-      { nome: "Elevação Lateral Halter", meta: "3 × 12", feito: true },
-      { nome: "Rosca Direta", meta: "3 × 12", feito: true },
-      { nome: "Tríceps Corda Polia", meta: "3 × 12–15", feito: true }
-    ]
-  },
-  {
-    id: "t_seed_20261005",
-    tipo: "A",
-    nome: "Treino A — Pernas + Core",
-    timestamp: new Date("2026-10-05T20:39:00").getTime(),
-    dataStr: "seg., 05 de out. de 2026",
-    horaStr: "20:39",
-    duracaoStr: "1h 9min 46s",
-    duracaoSeg: 4186,
-    feitosCount: 9,
-    totalCount: 9,
-    kcal: 612,
-    fcMedia: 103,
-    exercicios: [
-      { nome: "🚴 Air Bike (aquecimento)", meta: "8 min leve", feito: true },
-      { nome: "Pressão de Pernas Sentado", meta: "4 × 12", feito: true },
-      { nome: "Cadeira Extensora", meta: "3 × 12", feito: true },
-      { nome: "Cadeira Flexora", meta: "3 × 12–15", feito: true },
-      { nome: "Abdução de Quadril", meta: "4 × 15", feito: true },
-      { nome: "Glúteo na Máquina", meta: "4 × 12", feito: true },
-      { nome: "Prancha Frontal", meta: "3 × 45s", feito: true },
-      { nome: "Bird Dog", meta: "3 × 12 cada", feito: true },
-      { nome: "🚴 Air Bike (finalizador)", meta: "3× 45s / 30s pausa", feito: true }
-    ]
-  },
-  {
-    id: "t_seed_20260928",
-    tipo: "B",
-    nome: "Treino B — Costas + Braços",
-    timestamp: new Date("2026-09-28T20:59:00").getTime(),
-    dataStr: "dom., 28 de set. de 2026",
-    horaStr: "20:59",
-    duracaoStr: "59min 28s",
-    duracaoSeg: 3568,
-    feitosCount: 9,
-    totalCount: 9,
-    kcal: 552,
-    fcMedia: 107,
-    exercicios: [
-      { nome: "🚴 Air Bike (aquecimento)", meta: "8 min leve", feito: true },
-      { nome: "Chest Press (máquina)", meta: "3 × 10–12", feito: true },
-      { nome: "Puxada Alta Frontal", meta: "4 × 10–12", feito: true },
-      { nome: "Remada Baixa Polia", meta: "4 × 12", feito: true },
-      { nome: "⭐ Face Pull", meta: "3 × 15", feito: true },
-      { nome: "Remada Unilateral Halter", meta: "3 × 10 cada", feito: true },
-      { nome: "Elevação Lateral Halter", meta: "3 × 12", feito: true },
-      { nome: "Rosca Direta", meta: "3 × 12", feito: true },
-      { nome: "Tríceps Corda Polia", meta: "3 × 12–15", feito: true }
-    ]
-  }
-];
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
 (async () => {
