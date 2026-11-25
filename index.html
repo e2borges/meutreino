@@ -217,7 +217,8 @@
       <h3>Exercícios realizados</h3>
       <div class="done-list" id="res-lista"></div>
     </div>
-    <div style="text-align:center;font-size:12px;color:#22c55e;margin-top:8px;">✅ Treino salvo no Google Sheets</div>
+    <div id="res-status" style="text-align:center;font-size:13px;margin-top:8px;line-height:1.5;"></div>
+    <button class="btn btn-ghost mt12" id="btn-retry" style="display:none" onclick="tentarSalvarDeNovo()">Tentar salvar de novo</button>
     <button class="btn btn-primary mt12" onclick="irPara('home')">Novo Treino</button>
     <button class="btn btn-ghost mt12" onclick="irPara('historico')">Ver Histórico</button>
   </div>
@@ -302,30 +303,96 @@ async function sbFetch(path, options = {}) {
 
 async function initDB() {}
 
-async function salvarSessao(sessao) {
-  salvarLocal(sessao);
+// ── SALVAMENTO COM RESULTADO REAL ────────────────────────────────────────────
+const CHAVE_PENDENTES = "treinos_pendentes";
+let ultimaSessaoParaSalvar = null;
+
+function lerPendentes() {
+  try { return JSON.parse(localStorage.getItem(CHAVE_PENDENTES) || "[]"); } catch(e) { return []; }
+}
+function gravarPendentes(lista) {
+  try { localStorage.setItem(CHAVE_PENDENTES, JSON.stringify(lista)); } catch(e) {}
+}
+function marcarPendente(s) {
+  const l = lerPendentes().filter(x => x.id !== s.id);
+  l.push(s);
+  gravarPendentes(l);
+}
+function removerPendente(id) {
+  gravarPendentes(lerPendentes().filter(x => x.id !== id));
+}
+
+// Envia ao banco (resultado verificado) e dispara a cópia da planilha em segundo plano
+async function enviarRemoto(sessao) {
+  let banco = false;
   try {
-    await sbFetch("/rest/v1/treinos", {
-      method: "POST",
-      prefer: "resolution=ignore-duplicates",
-      body: JSON.stringify({
-        id: sessao.id, tipo: sessao.tipo, nome: sessao.nome,
-        data_str: sessao.dataStr, hora_str: sessao.horaStr,
-        duracao_str: sessao.duracaoStr, duracao_seg: sessao.duracaoSeg,
-        feitos_count: sessao.feitosCount, total_count: sessao.totalCount,
-        kcal: sessao.kcal || null, fc_media: sessao.fcMedia || null,
-        exercicios: sessao.exercicios
-      })
-    });
+    const espera = new Promise((_, rej) => setTimeout(() => rej(new Error("tempo esgotado")), 12000));
+    await Promise.race([
+      sbFetch("/rest/v1/treinos", {
+        method: "POST",
+        prefer: "resolution=ignore-duplicates",
+        body: JSON.stringify({
+          id: sessao.id, tipo: sessao.tipo, nome: sessao.nome,
+          data_str: sessao.dataStr, hora_str: sessao.horaStr,
+          duracao_str: sessao.duracaoStr, duracao_seg: sessao.duracaoSeg,
+          feitos_count: sessao.feitosCount, total_count: sessao.totalCount,
+          kcal: sessao.kcal || null, fc_media: sessao.fcMedia || null,
+          exercicios: sessao.exercicios
+        })
+      }),
+      espera
+    ]);
+    banco = true;
   } catch(e) { console.warn("Supabase salvar erro:", e); }
-  // Espelho no Google Sheets
+
+  // Espelho no Google Sheets (resposta não verificável por causa do no-cors)
   try {
     fetch(SHEETS_URL, {
       method: "POST", mode: "no-cors",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "salvar", ...sessao })
-    });
+    }).catch(() => {});
   } catch(e) {}
+
+  return { banco };
+}
+
+async function salvarSessao(sessao) {
+  salvarLocal(sessao);
+  const status = await enviarRemoto(sessao);
+  if (!status.banco) marcarPendente(sessao);
+  return status;
+}
+
+function mostrarStatusSalvamento(status) {
+  const el = document.getElementById("res-status");
+  const btn = document.getElementById("btn-retry");
+  if (!el) return;
+  if (status && status.banco) {
+    el.style.color = "#22c55e";
+    el.innerHTML = "✅ Treino salvo no banco de dados<br><span style='color:var(--muted);font-size:11px'>A cópia para a planilha do Google segue em segundo plano.</span>";
+    if (btn) btn.style.display = "none";
+  } else {
+    el.style.color = "#f59e0b";
+    el.innerHTML = "⚠️ Não consegui salvar no banco (pode estar pausado ou sem internet).<br><span style='font-size:11px'>O treino ficou guardado neste celular e será reenviado ao abrir o app.</span>";
+    if (btn) { btn.style.display = "block"; btn.disabled = false; btn.textContent = "Tentar salvar de novo"; }
+  }
+}
+
+async function tentarSalvarDeNovo() {
+  if (!ultimaSessaoParaSalvar) return;
+  const btn = document.getElementById("btn-retry");
+  if (btn) { btn.disabled = true; btn.textContent = "Salvando... ⏳"; }
+  const status = await enviarRemoto(ultimaSessaoParaSalvar);
+  if (status.banco) removerPendente(ultimaSessaoParaSalvar.id);
+  mostrarStatusSalvamento(status);
+}
+
+async function reenviarPendentes() {
+  for (const s of lerPendentes()) {
+    const st = await enviarRemoto(s);
+    if (st.banco) removerPendente(s.id);
+  }
 }
 
 async function carregarHistorico() {
@@ -395,8 +462,10 @@ function iniciarTreino() {
   document.getElementById("sess-titulo").textContent = treino.nome;
   document.getElementById("sess-data").textContent = sessaoAtiva.dataStr + " às " + sessaoAtiva.horaStr;
 
+  resetarBotaoFinalizar();
   renderExercicios();
   iniciarTimer();
+  salvarAndamento();
   irPara("sessao");
 }
 
@@ -426,21 +495,80 @@ function toggleEx(i) {
   item.classList.toggle("done", sessaoAtiva.exercicios[i].feito);
   const circle = item.querySelector(".check-circle");
   circle.textContent = sessaoAtiva.exercicios[i].feito ? "✓" : "";
+  salvarAndamento();
+}
+
+// ── TREINO EM ANDAMENTO (sobrevive a sair do Safari) ─────────────────────────
+// O iPhone descarta a página quando você troca de app. Por isso o estado do
+// treino é salvo no aparelho a cada marcação e restaurado ao reabrir.
+const CHAVE_ANDAMENTO = "treino_em_andamento";
+const MAX_HORAS_ANDAMENTO = 6;
+
+function salvarAndamento() {
+  try {
+    if (sessaoAtiva) {
+      localStorage.setItem(CHAVE_ANDAMENTO, JSON.stringify({ sessao: sessaoAtiva }));
+    }
+  } catch(e) {}
+}
+
+function limparAndamento() {
+  try { localStorage.removeItem(CHAVE_ANDAMENTO); } catch(e) {}
+}
+
+function resetarBotaoFinalizar() {
+  const btn = document.querySelector("#screen-sessao .btn-success");
+  if (btn) { btn.textContent = "Finalizar Treino ✓"; btn.disabled = false; }
+}
+
+function restaurarAndamento() {
+  try {
+    const raw = localStorage.getItem(CHAVE_ANDAMENTO);
+    if (!raw) return false;
+    const salvo = JSON.parse(raw);
+    const s = salvo && salvo.sessao;
+    if (!s || !s.inicio || !Array.isArray(s.exercicios)) { limparAndamento(); return false; }
+    // Descarta treino esquecido há muito tempo
+    if (Date.now() - s.inicio > MAX_HORAS_ANDAMENTO * 3600 * 1000) { limparAndamento(); return false; }
+
+    sessaoAtiva = s;
+    document.getElementById("sess-titulo").textContent = s.nome;
+    document.getElementById("sess-data").textContent = s.dataStr + " às " + s.horaStr;
+    resetarBotaoFinalizar();
+    renderExercicios();
+    iniciarTimer();
+    irPara("sessao");
+    return true;
+  } catch(e) { return false; }
 }
 
 // ── TIMER ────────────────────────────────────────────────────────────────────
+function atualizarTimer() {
+  if (!sessaoAtiva) return;
+  const seg = Math.floor((Date.now() - sessaoAtiva.inicio) / 1000);
+  const m = String(Math.floor(seg / 60)).padStart(2, "0");
+  const s = String(seg % 60).padStart(2, "0");
+  const el = document.getElementById("timer");
+  if (el) el.textContent = m + ":" + s;
+  sessaoAtiva.duracaoSeg = seg;
+}
+
 function iniciarTimer() {
   clearInterval(timerInterval);
+  atualizarTimer();
   timerInterval = setInterval(() => {
     if (!sessaoAtiva) { clearInterval(timerInterval); return; }
-    const seg = Math.floor((Date.now() - sessaoAtiva.inicio) / 1000);
-    const m = String(Math.floor(seg / 60)).padStart(2, "0");
-    const s = String(seg % 60).padStart(2, "0");
-    const el = document.getElementById("timer");
-    if (el) el.textContent = m + ":" + s;
-    sessaoAtiva.duracaoSeg = seg;
+    atualizarTimer();
   }, 1000);
 }
+
+// Ao voltar para o app (ou ao sair), atualiza o cronômetro e grava o estado
+document.addEventListener("visibilitychange", () => {
+  if (!sessaoAtiva) return;
+  if (document.visibilityState === "visible") atualizarTimer();
+  salvarAndamento();
+});
+window.addEventListener("pagehide", salvarAndamento);
 
 // ── FINALIZAR ────────────────────────────────────────────────────────────────
 async function finalizarTreino() {
@@ -472,8 +600,12 @@ async function finalizarTreino() {
   const btnFinalizar = document.querySelector("#screen-sessao .btn-success");
   if (btnFinalizar) { btnFinalizar.textContent = "Salvando... ⏳"; btnFinalizar.disabled = true; }
 
-  await salvarSessao(sessaoAtiva);
+  const sessaoFinal = sessaoAtiva;
+  const statusSalvo = await salvarSessao(sessaoFinal);
+  ultimaSessaoParaSalvar = sessaoFinal;
+  mostrarStatusSalvamento(statusSalvo);
 
+  limparAndamento();
   sessaoAtiva = null;
   irPara("resumo");
 }
@@ -492,6 +624,7 @@ function confirmarCancelar() {
   const modal = document.getElementById("modal-cancelar");
   if (modal) modal.style.display = "none";
   clearInterval(timerInterval);
+  limparAndamento();
   sessaoAtiva = null;
   irPara("home");
 }
@@ -533,6 +666,10 @@ async function renderHistorico() {
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
 (async () => {
+  // Se havia um treino em andamento, volta direto para ele
+  restaurarAndamento();
+  reenviarPendentes();
+
   // Insere seeds no localStorage se ainda não existirem
   try {
     const lista = JSON.parse(localStorage.getItem("treinos_elias") || "[]");
